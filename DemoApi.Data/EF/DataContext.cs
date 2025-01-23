@@ -25,5 +25,6 @@ namespace DemoApi.Data.EF
         }
 
         public DbSet<Product> Products { get; set; }
+        public DbSet<Session> Sessions { get; set; }
     }
 }

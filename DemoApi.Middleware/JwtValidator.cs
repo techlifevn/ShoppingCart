@@ -14,19 +14,30 @@ namespace DemoApi.Middleware
 
         public async Task InvokeAsync(HttpContext context, IUserService userService)
         {
-            if (context.Request.Path.Equals("/api/account/login") || context.Request.Path.Equals("/api/account/register"))
-            {
-                await _next(context);
-                return;
-            }
+            //if (context.Request.Path.Equals("/api/account/login") || context.Request.Path.Equals("/api/account/register"))
+            //{
+            //    await _next(context);
+            //    return;
+            //}
 
-            var username = context.User.Claims.FirstOrDefault(c => c.Type == "UserName")?.Value;
+            //string token = context.Request.Headers.Authorization.ToString().Replace("Bearer ", "");
 
-            if (string.IsNullOrEmpty(username) || !await userService.CheckUserExists(username))
+            //var jwtHandler = new JwtSecurityTokenHandler();
+
+            //var jwt = jwtHandler.ReadJwtToken(token);
+
+            //var username = jwt.Claims.FirstOrDefault(c => c.Type == "UserName")?.Value;
+
+            if (context.Request.Path.ToString().ToLower().Equals("/api/account/refreshToken"))
             {
-                context.Response.StatusCode = StatusCodes.Status401Unauthorized;
-                await context.Response.WriteAsync("Invalid token");
-                return;
+                var username = context.Request.HttpContext.User?.FindFirst("username")?.Value;
+
+                if (string.IsNullOrEmpty(username) || !await userService.CheckUserExists(username))
+                {
+                    context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+                    await context.Response.WriteAsync("Invalid token");
+                    return;
+                }
             }
 
             await _next(context);

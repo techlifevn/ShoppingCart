@@ -2,6 +2,7 @@
 using DemoApi.Common.Result;
 using DemoApi.Data.EF;
 using DemoApi.Data.Entity;
+using DemoApi.Model.Api;
 using DemoApi.Model.User;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -19,7 +20,7 @@ namespace DemoApi.Services
         Task<Result<bool>> UpdateAsync(UserUpdateRequest request);
         Task<Result<bool>> DeleteAsync(DeleteRequest request);
         Task<PagedResult<UserDTO>> GetPagings(GetPagingRequest request);
-        Task<Result<string>> SignInAsync(SignInModel model);
+        Task<Result<Token>> SignInAsync(SignInModel model);
         Task<bool> CheckUserExists(string username);
     }
 
@@ -147,47 +148,79 @@ namespace DemoApi.Services
             };
         }
 
-        public async Task<Result<string>> SignInAsync(SignInModel model)
+        public async Task<Result<Token>> SignInAsync(SignInModel model)
         {
             string action = "Đăng nhập";
 
             var user = await _userManager.FindByNameAsync(model.UserName);
 
-            if (user == null) return Result<string>.Error(action, "Tài khoản hoặc mật khẩu không đúng");
+            if (user == null) return Result<Token>.Error(action, "Tài khoản hoặc mật khẩu không đúng");
 
             var result = await _signInManager.PasswordSignInAsync(model.UserName, model.Password, false, false);
 
             if (!result.Succeeded)
             {
-                return Result<string>.Error(action, "Tài khoản hoặc mật khẩu không đúng");
+                return Result<Token>.Error(action, "Tài khoản hoặc mật khẩu không đúng");
             }
 
-            var authClaims = new List<Claim>
+            var session = new Session
             {
-                new Claim(ClaimTypes.Email, user.Email),
-                new Claim("UserName", user.UserName),
-                new Claim("Id", user.Id.ToString()),
-                new Claim(JwtRegisteredClaimNames.Jti,Guid.NewGuid().ToString()),
+                Id = Guid.NewGuid(),
+                UserId = user.Id,
+                Valid = true,
+                CreatedAt = DateTime.Now,
+                ExpiresAt = DateTime.Now.AddMinutes(10),
+            };
+
+            _context.Sessions.Add(session);
+
+            await _context.SaveChangesAsync();
+
+            var accessTokenClaims = new List<Claim>
+            {
+                new ("UserName", user.UserName),
+                new (JwtRegisteredClaimNames.Jti, session.Id.ToString()),
+            };
+
+            var refreshTokenClaims = new List<Claim>
+            {
+                new(ClaimTypes.Email, user.Email),
+                new ("UserName", user.UserName),
+                new ("UserId", user.Id.ToString()),
+                new (JwtRegisteredClaimNames.Jti, session.Id.ToString()),
             };
 
             var userRoles = await _userManager.GetRolesAsync(user);
 
             foreach (var role in userRoles)
             {
-                authClaims.Add(new Claim(ClaimTypes.Role, role));
+                accessTokenClaims.Add(new Claim(ClaimTypes.Role, role));
+                refreshTokenClaims.Add(new Claim(ClaimTypes.Role, role));
             }
 
             var authenKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_configuration["Jwt:SigningKey"]));
 
-            var token = new JwtSecurityToken(
+            var accessToken = new JwtSecurityToken(
                 issuer: _configuration["Jwt:Issuer"],
                 audience: _configuration["Jwt:Audience"],
-                expires: DateTime.Now.AddMinutes(30),
-                claims: authClaims,
+                expires: DateTime.Now.AddMinutes(3),
+                claims: accessTokenClaims,
                 signingCredentials: new SigningCredentials(authenKey, SecurityAlgorithms.HmacSha256Signature)
             );
 
-            return Result<string>.Success(action, "Tạo token thành công", new JwtSecurityTokenHandler().WriteToken(token));
+            var refressToken = new JwtSecurityToken(
+                issuer: _configuration["Jwt:Issuer"],
+                audience: _configuration["Jwt:Audience"],
+                expires: session.ExpiresAt,
+                claims: refreshTokenClaims,
+                signingCredentials: new SigningCredentials(authenKey, SecurityAlgorithms.HmacSha256Signature)
+            );
+
+            return Result<Token>.Success(action, "Tạo token thành công", new Token
+            {
+                AccessToken = new JwtSecurityTokenHandler().WriteToken(accessToken),
+                RefreshToken = new JwtSecurityTokenHandler().WriteToken(refressToken)
+            });
         }
 
         public Task<Result<bool>> UpdateAsync(UserUpdateRequest request)

@@ -13,5 +13,7 @@ namespace DemoApi.Data.Entity
         public int Order { get; set; }
         public DateTime CreatedAt { get; set; }
         public DateTime UpdatedAt { get; set; }
+
+        public virtual List<Session> Sessions { get; set; }
     }
 }

@@ -62,18 +62,21 @@ builder.Services.AddAuthentication(options =>
         ValidateIssuerSigningKey = true,
         ValidIssuer = builder.Configuration["Jwt:Issuer"],
         ValidAudience = builder.Configuration["Jwt:Audience"],
-        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(builder.Configuration["Jwt:SigningKey"]))
+        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(builder.Configuration["Jwt:SigningKey"])),
+        ClockSkew = TimeSpan.Zero,
     };
 
     options.Events = new JwtBearerEvents
     {
-        OnAuthenticationFailed = context =>
+        OnAuthenticationFailed = async context =>
         {
-            if (context.Exception.GetType() == typeof(SecurityTokenException))
+            //context.Exception is SecurityTokenExpiredException
+            //context.Exception.GetType() == typeof(SecurityTokenExpiredException)
+            if (context.Exception is SecurityTokenExpiredException)
             {
-
+                context.Response.Headers.Append("Token-Expired", "true");
             }
-            return Task.CompletedTask;
+            await Task.CompletedTask;
         }
     };
 });

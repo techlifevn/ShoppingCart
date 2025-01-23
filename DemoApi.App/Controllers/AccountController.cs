@@ -86,7 +86,7 @@ namespace DemoApi.App.Controllers
                 });
             }
 
-            return Ok(new ApiResponse<string>
+            return Ok(new ApiResponse<Token>
             {
                 Status = true,
                 Message = result.Message,

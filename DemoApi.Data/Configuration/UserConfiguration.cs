@@ -13,6 +13,7 @@ namespace DemoApi.Data.Configuration
             builder.HasKey(t => t.Id);
             builder.HasIndex(t => t.UserName).IsUnique();
             builder.HasIndex(t => t.Email).IsUnique();
+
         }
     }
 }
